@@ -3,9 +3,10 @@ import cors from "cors";
 
 import mediaRoutes from "./routes/mediaRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-
+import userRoutes from "./routes/userRoutes.js";
 import folderRoutes from "./routes/folderRoutes.js";
 import mediaListRoutes from "./routes/mediaListRoutes.js";
+
 
 const app = express();
 
@@ -20,7 +21,7 @@ app.get("/", (req, res) => {
 
 app.use("/auth", authRoutes);
 app.use("/media", mediaRoutes);
-
+app.use("/users", userRoutes);
 app.use("/folders", folderRoutes);
 app.use("/lists", mediaListRoutes);
 

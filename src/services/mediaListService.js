@@ -21,6 +21,12 @@ export async function createMediaList({
 export async function getUserLists(userId) {
   return MediaList.findAll({
     where: { user_id: userId },
+    include: [
+      {
+        model: ListItem,
+        include: [Media],
+      },
+    ],
     order: [["created_at", "DESC"]],
   });
 }
