@@ -12,12 +12,20 @@ export async function setMediaStatus({
   release_date,
   status,
   rating,
+  season_number,
 }) {
   const validStatuses = ["PLANNED", "WATCHING", "COMPLETED", "DROPPED"];
   const normalizedRating =
     rating === undefined || rating === null || rating === ""
       ? null
       : Number(rating);
+  const parsedSeason = Number.isFinite(Number(season_number))
+    ? Number(season_number)
+    : null;
+  const normalizedSeason =
+    type === "SERIES"
+      ? parsedSeason ?? 1
+      : 0;
 
   if (status === null || status === undefined) {
     const media = await Media.findOne({
@@ -32,6 +40,7 @@ export async function setMediaStatus({
       where: {
         user_id: userId,
         media_id: media.id,
+        season_number: normalizedSeason,
       },
     });
 
@@ -40,6 +49,12 @@ export async function setMediaStatus({
 
   if (!validStatuses.includes(status)) {
     throw new Error("Status inválido");
+  }
+
+  if (type === "SERIES") {
+    if (!Number.isInteger(normalizedSeason) || normalizedSeason < 1) {
+      throw new Error("Temporada inválida");
+    }
   }
 
   if (normalizedRating !== null) {
@@ -73,6 +88,7 @@ export async function setMediaStatus({
       media_id: media.id,
       status,
       rating: normalizedRating,
+      season_number: normalizedSeason,
     },
   });
 
@@ -80,6 +96,7 @@ export async function setMediaStatus({
     await userMediaStatus.update({
       status,
       rating: normalizedRating,
+      season_number: normalizedSeason,
     });
   }
 

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import Search from "./pages/Search";
 import Lists from "./pages/Lists";
 import ListDetails from "./pages/ListDetails";
@@ -16,6 +17,7 @@ export default function AppRoutes() {
 
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/search" element={<Search />} />
         <Route path="/lists" element={<Lists />} />
         <Route path="/lists/create" element={<CreateList />} />

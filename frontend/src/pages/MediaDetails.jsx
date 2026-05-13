@@ -8,6 +8,8 @@ import {
   MonitorX,
   Scroll,
   Star,
+  ThumbsDown,
+  ThumbsUp,
 } from "lucide-react";
 
 import api from "../services/api";
@@ -20,6 +22,13 @@ export default function MediaDetails() {
   const [currentStatus, setCurrentStatus] = useState(null);
   const [currentRating, setCurrentRating] = useState(null);
   const [hoverRating, setHoverRating] = useState(null);
+  const [seasonsCount, setSeasonsCount] = useState(0);
+  const [selectedSeason, setSelectedSeason] = useState(1);
+  const [seasonPosters, setSeasonPosters] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   const [lists, setLists] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -27,6 +36,11 @@ export default function MediaDetails() {
   const ratingStatuses = ["COMPLETED", "WATCHING", "DROPPED"];
   const showRating = ratingStatuses.includes(currentStatus);
   const displayRating = hoverRating ?? currentRating ?? 0;
+  const activeSeasonPoster =
+    media?.type === "SERIES"
+      ? seasonPosters.find((season) => season.season_number === selectedSeason)?.poster_url
+      : null;
+  const posterUrl = activeSeasonPoster || media?.poster_url || null;
 
   function normalizeRating(value) {
     if (value === null || value === undefined || value === "") {
@@ -53,6 +67,29 @@ export default function MediaDetails() {
       }
     }
 
+    async function loadDetails() {
+      if (!media || media.type !== "SERIES") {
+        setSeasonsCount(0);
+        return;
+      }
+
+      try {
+        const response = await api.get(
+          `/media/${media.tmdb_id}/details?type=${media.type}`,
+        );
+
+        const seasons = response.data?.seasonsCount || 0;
+        setSeasonsCount(seasons);
+        setSeasonPosters(response.data?.seasons || []);
+
+        if (selectedSeason > seasons) {
+          setSelectedSeason(1);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar detalhes:", error);
+      }
+    }
+
     async function loadStatus() {
       if (!media) {
         return;
@@ -65,6 +102,7 @@ export default function MediaDetails() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          params: media.type === "SERIES" ? { season: selectedSeason } : undefined,
         });
 
         setCurrentStatus(response.data?.status || null);
@@ -74,9 +112,34 @@ export default function MediaDetails() {
       }
     }
 
+    async function loadReviews() {
+      if (!media || media.type !== "SERIES") {
+        setReviews([]);
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem("token");
+        const response = await api.get(`/media/${media.tmdb_id}/reviews`, {
+          params: { season: selectedSeason },
+          headers: token
+            ? {
+              Authorization: `Bearer ${token}`,
+            }
+            : undefined,
+        });
+
+        setReviews(response.data || []);
+      } catch (error) {
+        console.error("Erro ao carregar reviews:", error);
+      }
+    }
+
     loadVideos();
+    loadDetails();
     loadStatus();
-  }, [media]);
+    loadReviews();
+  }, [media, selectedSeason]);
 
   async function openListModal() {
     const token = localStorage.getItem("token");
@@ -111,6 +174,7 @@ export default function MediaDetails() {
       ...media,
       status,
       rating: shouldPersistRating ? normalizedRating : null,
+      season_number: media.type === "SERIES" ? selectedSeason : 0,
     };
 
     const response = await api.post("/media/status", payload, {
@@ -129,6 +193,87 @@ export default function MediaDetails() {
         ? nextRating ?? normalizedRating
         : null,
     );
+  }
+
+  async function submitReview(event) {
+    event.preventDefault();
+
+    if (!reviewTitle.trim() || !reviewText.trim()) {
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      return;
+    }
+
+    setReviewSubmitting(true);
+
+    try {
+      const response = await api.post(
+        `/media/${media.tmdb_id}/reviews`,
+        {
+          ...media,
+          season_number: selectedSeason,
+          review_title: reviewTitle.trim(),
+          content: reviewText.trim(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setReviews((current) => {
+        const filtered = current.filter((review) => review.id !== response.data?.id);
+        return [response.data, ...filtered];
+      });
+      setReviewTitle("");
+      setReviewText("");
+    } catch (error) {
+      console.error("Erro ao enviar review:", error);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  }
+
+  async function voteReview(reviewId, value) {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await api.post(
+        `/media/reviews/${reviewId}/vote`,
+        { value },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setReviews((current) =>
+        current.map((review) => {
+          if (review.id !== reviewId) {
+            return review;
+          }
+
+          return {
+            ...review,
+            likes: response.data?.likes ?? review.likes,
+            dislikes: response.data?.dislikes ?? review.dislikes,
+            user_vote: review.user_vote === value ? null : value,
+          };
+        }),
+      );
+    } catch (error) {
+      console.error("Erro ao votar na review:", error);
+    }
   }
 
   function handleStatusClick(status) {
@@ -196,9 +341,9 @@ export default function MediaDetails() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white overflow-x-hidden">
       <section className="relative px-8 py-10 overflow-hidden">
-        {media.poster_url && (
+        {posterUrl && (
           <img
-            src={media.poster_url}
+            src={posterUrl}
             alt={media.title}
             className="absolute inset-0 w-full h-full object-cover opacity-20 blur-xl scale-110"
           />
@@ -207,9 +352,9 @@ export default function MediaDetails() {
         <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/60 via-zinc-950/90 to-zinc-950" />
 
         <div className="relative max-w-6xl mx-auto flex gap-8 items-end">
-          {media.poster_url ? (
+          {posterUrl ? (
             <img
-              src={media.poster_url}
+              src={posterUrl}
               alt={media.title}
               className="w-56 rounded-3xl border border-zinc-800 shadow-2xl"
             />
@@ -227,7 +372,37 @@ export default function MediaDetails() {
               ← Voltar para busca
             </Link>
 
-            <p className="text-red-500 font-semibold mt-6">{media.type}</p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <p className="text-red-500 font-semibold">{media.type}</p>
+
+              {media.type === "SERIES" && seasonsCount > 0 && (
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <span className="uppercase tracking-[0.2em]">Temporadas</span>
+
+                  <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[240px]">
+                    {Array.from({ length: seasonsCount }, (_, index) => {
+                      const season = index + 1;
+                      const isActive = season === selectedSeason;
+
+                      return (
+                        <button
+                          key={season}
+                          type="button"
+                          onClick={() => setSelectedSeason(season)}
+                          className={`rounded-lg px-2 py-1 text-xs font-semibold transition ${
+                            isActive
+                              ? "bg-red-600 text-white"
+                              : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                          }`}
+                        >
+                          S{season}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <h1 className="text-5xl font-bold mt-2">{media.title}</h1>
 
@@ -373,6 +548,111 @@ export default function MediaDetails() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {media.type === "SERIES" && (
+        <section className="px-8 pb-16">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="text-red-500 text-xl">✎</span>
+              <h2 className="text-2xl font-bold">Reviews</h2>
+            </div>
+
+            <form onSubmit={submitReview} className="space-y-3 mb-8">
+              <input
+                value={reviewTitle}
+                onChange={(event) => setReviewTitle(event.target.value)}
+                placeholder="Titulo da review"
+                className="w-full rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3 text-sm text-white outline-none focus:border-red-500"
+                maxLength={120}
+              />
+
+              <textarea
+                value={reviewText}
+                onChange={(event) => setReviewText(event.target.value)}
+                placeholder={`Escreva sua review da temporada S${selectedSeason}...`}
+                className="w-full min-h-[140px] rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3 text-sm text-white outline-none focus:border-red-500"
+                maxLength={2000}
+              />
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">
+                  {reviewTitle.length}/120 · {reviewText.length}/2000
+                </span>
+
+                <button
+                  type="submit"
+                  disabled={reviewSubmitting}
+                  className="bg-red-600 hover:bg-red-700 disabled:bg-zinc-700 disabled:text-zinc-300 transition rounded-xl px-5 py-2 text-sm font-semibold"
+                >
+                  Publicar
+                </button>
+              </div>
+            </form>
+
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <div
+                  key={review.id}
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4"
+                >
+                  <div className="flex items-center gap-3 text-sm text-zinc-300">
+                    <div className="h-9 w-9 rounded-full bg-red-600 flex items-center justify-center text-sm font-bold uppercase">
+                      {(review.User?.name || review.User?.username || "U")[0]}
+                    </div>
+
+                    <span className="font-semibold text-white">
+                      {review.User?.name || review.User?.username || "Usuario"}
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      {new Date(review.created_at).toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+
+                  <h3 className="text-lg font-semibold text-white mt-3">
+                    {review.title}
+                  </h3>
+
+                  <p className="text-sm text-zinc-200 mt-3 whitespace-pre-wrap">
+                    {review.content}
+                  </p>
+
+                  <div className="flex items-center gap-4 mt-4 text-sm text-zinc-300">
+                    <button
+                      type="button"
+                      onClick={() => voteReview(review.id, 1)}
+                      className={`flex items-center gap-2 transition ${
+                        Number(review.user_vote) === 1
+                          ? "text-blue-400"
+                          : "text-zinc-300 hover:text-white"
+                      }`}
+                    >
+                      <ThumbsUp size={16} />
+                      {Number(review.likes || 0)}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => voteReview(review.id, -1)}
+                      className={`flex items-center gap-2 transition ${
+                        Number(review.user_vote) === -1
+                          ? "text-red-400"
+                          : "text-zinc-300 hover:text-white"
+                      }`}
+                    >
+                      <ThumbsDown size={16} />
+                      {Number(review.dislikes || 0)}
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {reviews.length === 0 && (
+                <p className="text-sm text-zinc-500">Nenhuma review ainda.</p>
+              )}
             </div>
           </div>
         </section>

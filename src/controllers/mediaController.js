@@ -2,6 +2,7 @@ import {
   searchMovies,
   getPopularMedia,
   getMediaVideos,
+  getMediaDetails,
 } from "../services/tmdbService.js";
 
 import {
@@ -95,6 +96,7 @@ export async function updateMediaStatus(req, res) {
 export async function getMediaStatus(req, res) {
   try {
     const { tmdbId } = req.params;
+    const { season } = req.query;
     const userId = req.user.id;
 
     const media = await Media.findOne({
@@ -111,10 +113,42 @@ export async function getMediaStatus(req, res) {
       where: {
         user_id: userId,
         media_id: media.id,
+        season_number:
+          media.type === "SERIES"
+            ? season
+              ? Number(season)
+              : 1
+            : 0,
       },
     });
 
     return res.json(userMediaStatus);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+}
+
+export async function mediaDetails(req, res) {
+  try {
+    const { tmdbId } = req.params;
+    const { type } = req.query;
+
+    if (!type) {
+      return res.status(400).json({
+        error: "type is required",
+      });
+    }
+
+    const details = await getMediaDetails({
+      tmdbId,
+      type,
+    });
+
+    return res.json(details);
   } catch (error) {
     console.error(error);
 

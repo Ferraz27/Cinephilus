@@ -23,6 +23,12 @@ const UserMediaStatus = sequelize.define("UserMediaStatus", {
     allowNull: false,
   },
 
+  season_number: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+  },
+
   rating: {
     type: DataTypes.DECIMAL(3, 1),
     allowNull: true,
@@ -36,7 +42,7 @@ const UserMediaStatus = sequelize.define("UserMediaStatus", {
   indexes: [
     {
       unique: true,
-      fields: ["user_id", "media_id"],
+      fields: ["user_id", "media_id", "season_number"],
     },
   ],
 });

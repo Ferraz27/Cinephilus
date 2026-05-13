@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../services/api";
 
 export default function Login() {
@@ -59,6 +59,13 @@ export default function Login() {
         >
           Entrar
         </button>
+
+        <Link
+          to="/register"
+          className="block text-center text-sm text-zinc-400 hover:text-white transition"
+        >
+          Criar conta
+        </Link>
       </form>
     </main>
   );

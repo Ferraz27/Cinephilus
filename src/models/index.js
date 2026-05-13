@@ -3,6 +3,8 @@ import sequelize from "../config/database.js";
 import User from "./User.js";
 import Media from "./Media.js";
 import UserMediaStatus from "./UserMediaStatus.js";
+import MediaReview from "./MediaReview.js";
+import MediaReviewVote from "./MediaReviewVote.js";
 
 import Folder from "./Folder.js";
 import MediaList from "./MediaList.js";
@@ -13,6 +15,18 @@ UserMediaStatus.belongsTo(User, { foreignKey: "user_id" });
 
 Media.hasMany(UserMediaStatus, { foreignKey: "media_id" });
 UserMediaStatus.belongsTo(Media, { foreignKey: "media_id" });
+
+User.hasMany(MediaReview, { foreignKey: "user_id" });
+MediaReview.belongsTo(User, { foreignKey: "user_id" });
+
+Media.hasMany(MediaReview, { foreignKey: "media_id" });
+MediaReview.belongsTo(Media, { foreignKey: "media_id" });
+
+User.hasMany(MediaReviewVote, { foreignKey: "user_id" });
+MediaReviewVote.belongsTo(User, { foreignKey: "user_id" });
+
+MediaReview.hasMany(MediaReviewVote, { foreignKey: "review_id" });
+MediaReviewVote.belongsTo(MediaReview, { foreignKey: "review_id" });
 
 User.hasMany(Folder, { foreignKey: "user_id" });
 Folder.belongsTo(User, { foreignKey: "user_id" });
@@ -34,6 +48,8 @@ export {
   User,
   Media,
   UserMediaStatus,
+  MediaReview,
+  MediaReviewVote,
   Folder,
   MediaList,
   ListItem,

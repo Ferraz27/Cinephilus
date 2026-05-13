@@ -9,6 +9,7 @@ export default function Search() {
 
   const [popularMedia, setPopularMedia] = useState([]);
   const [sortBy, setSortBy] = useState("relevance");
+  const [mediaFilter, setMediaFilter] = useState("all");
 
   async function handleSearch(event) {
     event.preventDefault();
@@ -31,8 +32,19 @@ export default function Search() {
   }, []);
 
   const displayedMedia = results.length > 0 ? results : popularMedia;
+  const filteredMedia = displayedMedia.filter((media) => {
+    if (mediaFilter === "movie") {
+      return media.type === "MOVIE";
+    }
 
-  const sortedMedia = [...displayedMedia].sort((a, b) => {
+    if (mediaFilter === "series") {
+      return media.type === "SERIES";
+    }
+
+    return true;
+  });
+
+  const sortedMedia = [...filteredMedia].sort((a, b) => {
     if (sortBy === "title") {
       return a.title.localeCompare(b.title);
     }
@@ -83,24 +95,36 @@ export default function Search() {
 
             <p className="text-zinc-500 mt-1">
               {results.length > 0
-                ? `${results.length} resultado(s)`
+                ? `${filteredMedia.length} resultado(s)`
                 : "Mídias populares da comunidade"}
             </p>
           </div>
 
-          <select
-            value={sortBy}
-            onChange={(event) => setSortBy(event.target.value)}
-            className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-red-500"
-          >
-            <option value="relevance">Relevância</option>
+          <div className="flex items-center gap-3">
+            <select
+              value={mediaFilter}
+              onChange={(event) => setMediaFilter(event.target.value)}
+              className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-red-500"
+            >
+              <option value="all">Filmes e series</option>
+              <option value="movie">Somente filmes</option>
+              <option value="series">Somente series</option>
+            </select>
 
-            <option value="title">Ordem alfabética</option>
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-red-500"
+            >
+              <option value="relevance">Relevância</option>
 
-            <option value="release_desc">Lançamento mais recente</option>
+              <option value="title">Ordem alfabética</option>
 
-            <option value="release_asc">Lançamento mais antigo</option>
-          </select>
+              <option value="release_desc">Lançamento mais recente</option>
+
+              <option value="release_asc">Lançamento mais antigo</option>
+            </select>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
