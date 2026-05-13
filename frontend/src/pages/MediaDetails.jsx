@@ -1,26 +1,40 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
-import { MonitorCheck , MonitorPlay , Clock3, MonitorX , Scroll } from "lucide-react";
+import {
+  Clock3,
+  MonitorCheck,
+  MonitorPlay,
+  MonitorX,
+  Scroll,
+  Star,
+} from "lucide-react";
 
 import api from "../services/api";
 
 export default function MediaDetails() {
-  const { id } = useParams();
   const location = useLocation();
 
-  const [media, setMedia] = useState(location.state?.media || null);
+  const [media] = useState(location.state?.media || null);
   const [videos, setVideos] = useState([]);
   const [currentStatus, setCurrentStatus] = useState(null);
+  const [currentRating, setCurrentRating] = useState(null);
+  const [hoverRating, setHoverRating] = useState(null);
 
   const [lists, setLists] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
 
-  useEffect(() => {
-    if (!media) {
-      setMedia(null);
+  const ratingStatuses = ["COMPLETED", "WATCHING", "DROPPED"];
+  const showRating = ratingStatuses.includes(currentStatus);
+  const displayRating = hoverRating ?? currentRating ?? 0;
+
+  function normalizeRating(value) {
+    if (value === null || value === undefined || value === "") {
+      return null;
     }
-  }, [id, media]);
+
+    return Number.parseFloat(value);
+  }
 
   useEffect(() => {
     async function loadVideos() {
@@ -54,6 +68,7 @@ export default function MediaDetails() {
         });
 
         setCurrentStatus(response.data?.status || null);
+        setCurrentRating(normalizeRating(response.data?.rating));
       } catch (error) {
         console.error("Erro ao carregar status:", error);
       }
@@ -85,30 +100,81 @@ export default function MediaDetails() {
       },
     });
 
-    alert("Mídia adicionada à lista!");
     setModalOpen(false);
   }
 
-  async function setMediaStatus(status) {
+  async function setMediaStatus(status, rating = currentRating) {
     const token = localStorage.getItem("token");
+    const shouldPersistRating = ratingStatuses.includes(status);
+    const normalizedRating = normalizeRating(rating);
+    const payload = {
+      ...media,
+      status,
+      rating: shouldPersistRating ? normalizedRating : null,
+    };
 
-    await api.post(
-      "/media/status",
-      {
-        ...media,
-        status,
+    const response = await api.post("/media/status", payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
       },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
+    });
+
+    const nextStatus =
+      response.data?.status?.status ?? response.data?.status ?? status ?? null;
+    const nextRating = normalizeRating(response.data?.status?.rating);
+
+    setCurrentStatus(nextStatus);
+    setCurrentRating(
+      shouldPersistRating
+        ? nextRating ?? normalizedRating
+        : null,
     );
-
-    setCurrentStatus(status);
-
-    alert("Status atualizado!");
   }
+
+  function handleStatusClick(status) {
+    if (currentStatus === status) {
+      setMediaStatus(null);
+      return;
+    }
+
+    setMediaStatus(status);
+  }
+
+  const statusOptions = [
+    {
+      value: "COMPLETED",
+      label: "Assistido",
+      icon: MonitorCheck,
+      activeClass: "bg-green-700",
+      hoverClass: "hover:bg-green-700",
+    },
+    {
+      value: "WATCHING",
+      label: "Assistindo",
+      icon: MonitorPlay,
+      activeClass: "bg-yellow-700",
+      hoverClass: "hover:bg-yellow-700",
+    },
+    {
+      value: "DROPPED",
+      label: "Abandonado",
+      icon: MonitorX,
+      activeClass: "bg-red-800",
+      hoverClass: "hover:bg-red-800",
+    },
+    {
+      value: "PLANNED",
+      label: "Quero ver",
+      icon: Clock3,
+      activeClass: "bg-blue-700",
+      hoverClass: "hover:bg-blue-700",
+    },
+  ];
+
+  const visibleStatusOptions =
+    media?.type === "MOVIE"
+      ? statusOptions.filter((option) => ["COMPLETED", "PLANNED"].includes(option.value))
+      : statusOptions;
 
   if (!media) {
     return (
@@ -187,103 +253,88 @@ export default function MediaDetails() {
           </div>
 
           <aside className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 h-fit space-y-4">
-            {media.type === "MOVIE" ? (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setMediaStatus("COMPLETED")}
-                    className={`flex items-center justify-center gap-2 transition rounded-xl py-3 text-sm ${
-                      currentStatus === "COMPLETED"
-                        ? "bg-green-700"
-                        : "bg-zinc-800 hover:bg-green-700"
-                    }`}
-                  >
-                    <MonitorCheck  size={18} />
-                    Assistido
-                  </button>
-
-                  <button
-                    onClick={() => setMediaStatus("PLANNED")}
-                    className={`flex items-center justify-center gap-2 transition rounded-xl py-3 text-sm ${
-                      currentStatus === "PLANNED"
-                        ? "bg-blue-700"
-                        : "bg-zinc-800 hover:bg-blue-700"
-                    }`}
-                  >
-                    <Clock3 size={18} />
-                    Quero ver
-                  </button>
-                </div>
-
+            <div className="grid grid-cols-2 gap-3">
+              {visibleStatusOptions.map(({ value, label, icon: Icon, activeClass, hoverClass }) => (
                 <button
-                  onClick={openListModal}
-                  className="w-full bg-red-600 hover:bg-red-700 transition rounded-xl h-[44px] font-semibold flex items-center justify-center gap-2"
+                  key={value}
+                  onClick={() => handleStatusClick(value)}
+                  className={`flex items-center justify-center gap-2 transition rounded-xl py-3 text-sm ${
+                    currentStatus === value
+                      ? activeClass
+                      : `bg-zinc-800 ${hoverClass}`
+                  }`}
                 >
-                  <Scroll size={18} />
-                  Adicionar à lista
+                  <Icon size={18} />
+                  {label}
                 </button>
-              </>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setMediaStatus("COMPLETED")}
-                    className={`flex items-center justify-center gap-2 transition rounded-xl py-3 text-sm ${
-                      currentStatus === "COMPLETED"
-                        ? "bg-green-700"
-                        : "bg-zinc-800 hover:bg-green-700"
-                    }`}
-                  >
-                    <MonitorCheck  size={18} />
-                    Assistido
-                  </button>
+              ))}
+            </div>
 
-                  <button
-                    onClick={() => setMediaStatus("PLANNED")}
-                    className={`flex items-center justify-center gap-2 transition rounded-xl py-3 text-sm ${
-                      currentStatus === "PLANNED"
-                        ? "bg-blue-700"
-                        : "bg-zinc-800 hover:bg-blue-700"
-                    }`}
-                  >
-                    <Clock3 size={18} />
-                    Quero ver
-                  </button>
+            {showRating && (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+                <div
+                  className="flex items-center gap-2"
+                  onMouseLeave={() => setHoverRating(null)}
+                >
+                  {Array.from({ length: 5 }, (_, index) => {
+                    const value = index + 1;
+                    const filled = Math.max(0, Math.min(1, displayRating - (value - 1)));
+                    const isFull = filled >= 1;
+                    const isHalf = filled >= 0.5 && filled < 1;
 
-                  <button
-                    onClick={() => setMediaStatus("WATCHING")}
-                    className={`flex items-center justify-center gap-2 transition rounded-xl py-3 text-sm ${
-                      currentStatus === "WATCHING"
-                        ? "bg-yellow-700"
-                        : "bg-zinc-800 hover:bg-yellow-700"
-                    }`}
-                  >
-                    <MonitorPlay  size={18} />
-                    Assistindo
-                  </button>
+                    return (
+                      <div key={value} className="relative h-10 w-10">
+                        <Star
+                          size={40}
+                          className="absolute inset-0 text-zinc-700"
+                        />
 
-                  <button
-                    onClick={() => setMediaStatus("DROPPED")}
-                    className={`flex items-center justify-center gap-2 transition rounded-xl py-3 text-sm ${
-                      currentStatus === "DROPPED"
-                        ? "bg-red-800"
-                        : "bg-zinc-800 hover:bg-red-800"
-                    }`}
-                  >
-                    <MonitorX  size={18} />
-                    Abandonado
-                  </button>
+                        {isFull && (
+                          <Star
+                            size={40}
+                            className="absolute inset-0 text-amber-400"
+                            fill="currentColor"
+                          />
+                        )}
+
+                        {isHalf && (
+                          <Star
+                            size={40}
+                            className="absolute inset-0 text-amber-400"
+                            fill="currentColor"
+                            style={{ clipPath: "inset(0 50% 0 0)" }}
+                          />
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setMediaStatus(currentStatus, value - 0.5)}
+                          onMouseEnter={() => setHoverRating(value - 0.5)}
+                          className="absolute inset-y-0 left-0 w-1/2 cursor-pointer"
+                          aria-label={`Dar nota ${value - 0.5} de 5 estrelas`}
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => setMediaStatus(currentStatus, value)}
+                          onMouseEnter={() => setHoverRating(value)}
+                          className="absolute inset-y-0 right-0 w-1/2 cursor-pointer"
+                          aria-label={`Dar nota ${value} de 5 estrelas`}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <button
-                  onClick={openListModal}
-                  className="w-full bg-red-600 hover:bg-red-700 transition rounded-xl h-[44px] font-semibold flex items-center justify-center gap-2"
-                >
-                  <Scroll size={18} />
-                  Adicionar à lista
-                </button>
-              </>
+              </div>
             )}
+
+            <button
+              onClick={openListModal}
+              className="w-full bg-red-600 hover:bg-red-700 transition rounded-xl h-[44px] font-semibold flex items-center justify-center gap-2"
+            >
+              <Scroll size={18} />
+              Adicionar à lista
+            </button>
           </aside>
         </div>
       </section>

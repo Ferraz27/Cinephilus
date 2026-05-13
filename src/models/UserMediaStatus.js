@@ -24,7 +24,7 @@ const UserMediaStatus = sequelize.define("UserMediaStatus", {
   },
 
   rating: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(3, 1),
     allowNull: true,
   },
 }, {
