@@ -48,13 +48,13 @@ export async function loginUser({ email, password }) {
   });
 
   if (!user) {
-    throw new Error("Email ou senha inválidos");
+    throw new Error("Credenciais invalidas");
   }
 
   const passwordIsValid = await bcrypt.compare(password, user.password_hash);
 
   if (!passwordIsValid) {
-    throw new Error("Email ou senha inválidos");
+    throw new Error("Credenciais invalidas");
   }
 
   const token = jwt.sign(

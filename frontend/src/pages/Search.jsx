@@ -6,32 +6,84 @@ import api from "../services/api";
 export default function Search() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isSearching, setIsSearching] = useState(false);
 
   const [popularMedia, setPopularMedia] = useState([]);
+  const [popularPage, setPopularPage] = useState(1);
+  const [popularTotalPages, setPopularTotalPages] = useState(1);
   const [sortBy, setSortBy] = useState("relevance");
   const [mediaFilter, setMediaFilter] = useState("all");
+
+  async function fetchSearch(page) {
+    if (!query.trim()) {
+      return;
+    }
+
+    const response = await api.get(
+      `/media/search?query=${encodeURIComponent(query)}&page=${page}`
+    );
+
+    setResults(response.data.results || []);
+    setCurrentPage(response.data.page || page);
+    setTotalPages(response.data.totalPages || 1);
+    setSortBy("relevance");
+    setIsSearching(true);
+  }
 
   async function handleSearch(event) {
     event.preventDefault();
 
-    const response = await api.get(`/media/search?query=${query}`);
-
-    setResults(response.data);
-
-    setSortBy("relevance");
+    await fetchSearch(1);
   }
 
-  async function loadPopularMedia() {
-    const response = await api.get("/media/popular");
+  function handlePrevPage() {
+    if (isSearching && currentPage > 1) {
+      fetchSearch(currentPage - 1);
+      return;
+    }
 
-    setPopularMedia(response.data);
+    if (!isSearching && popularPage > 1) {
+      loadPopularMedia(popularPage - 1);
+    }
+  }
+
+  function handleNextPage() {
+    if (isSearching && currentPage < totalPages) {
+      fetchSearch(currentPage + 1);
+      return;
+    }
+
+    if (!isSearching && popularPage < popularTotalPages) {
+      loadPopularMedia(popularPage + 1);
+    }
+  }
+
+  function handlePageSelect(page) {
+    if (isSearching) {
+      fetchSearch(page);
+      return;
+    }
+
+    loadPopularMedia(page);
+  }
+
+  async function loadPopularMedia(page = 1) {
+    const response = await api.get(`/media/popular?page=${page}`);
+
+    setPopularMedia(response.data.results || []);
+    setPopularPage(response.data.page || page);
+    setPopularTotalPages(response.data.totalPages || 1);
   }
 
   useEffect(() => {
-    loadPopularMedia();
+    loadPopularMedia(1);
   }, []);
 
-  const displayedMedia = results.length > 0 ? results : popularMedia;
+  const displayedMedia = isSearching ? results : popularMedia;
+  const activePage = isSearching ? currentPage : popularPage;
+  const activeTotalPages = isSearching ? totalPages : popularTotalPages;
   const filteredMedia = displayedMedia.filter((media) => {
     if (mediaFilter === "movie") {
       return media.type === "MOVIE";
@@ -59,6 +111,8 @@ export default function Search() {
 
     return 0;
   });
+
+  const pageItems = buildPageItems(activePage, activeTotalPages);
 
   return (
     <main className="min-h-screen bg-black text-white px-8 py-10">
@@ -90,11 +144,11 @@ export default function Search() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">
-              {results.length > 0 ? "Resultados da busca" : "Em alta"}
+              {isSearching ? "Resultados da busca" : "Em alta"}
             </h2>
 
             <p className="text-zinc-500 mt-1">
-              {results.length > 0
+              {isSearching
                 ? `${filteredMedia.length} resultado(s)`
                 : "Mídias populares da comunidade"}
             </p>
@@ -161,7 +215,76 @@ export default function Search() {
             </Link>
           ))}
         </div>
+
+        {activeTotalPages > 1 && (
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrevPage}
+              disabled={activePage <= 1}
+              className="rounded-xl border border-zinc-800 px-3 py-2 text-sm disabled:opacity-40"
+            >
+              Anterior
+            </button>
+
+            {pageItems.map((item, index) =>
+              item === "..." ? (
+                <span key={`ellipsis-${index}`} className="px-2 text-zinc-500">
+                  ...
+                </span>
+              ) : (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => handlePageSelect(item)}
+                  className={`rounded-xl border px-3 py-2 text-sm transition ${
+                    item === activePage
+                      ? "border-red-500 bg-red-600 text-white"
+                      : "border-zinc-800 text-zinc-300 hover:border-zinc-600"
+                  }`}
+                >
+                  {item}
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={handleNextPage}
+              disabled={activePage >= activeTotalPages}
+              className="rounded-xl border border-zinc-800 px-3 py-2 text-sm disabled:opacity-40"
+            >
+              Próxima
+            </button>
+          </div>
+        )}
       </section>
     </main>
   );
+}
+
+function buildPageItems(activePage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const items = [1];
+  const left = Math.max(2, activePage - 1);
+  const right = Math.min(totalPages - 1, activePage + 1);
+
+  if (left > 2) {
+    items.push("...");
+  }
+
+  for (let page = left; page <= right; page += 1) {
+    items.push(page);
+  }
+
+  if (right < totalPages - 1) {
+    items.push("...");
+  }
+
+  items.push(totalPages);
+
+  return items;
 }

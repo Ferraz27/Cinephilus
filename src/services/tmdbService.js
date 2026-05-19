@@ -1,4 +1,44 @@
 const BASE_URL = "https://api.themoviedb.org/3";
+const TMDB_PAGE_SIZE = 20;
+
+function filterMediaResults(results) {
+  return results
+    .filter((media) => media.media_type === "movie" || media.media_type === "tv")
+    .filter((media) => {
+      const hasAnimationGenre = (media.genre_ids || []).includes(16);
+      const isJapanese = media.original_language === "ja";
+
+      if (hasAnimationGenre && isJapanese) {
+        return false;
+      }
+
+      return true;
+    });
+}
+
+async function mapMediaResults(results) {
+  return Promise.all(
+    results.map(async (media) => {
+      const isMovie = media.media_type === "movie";
+      const fallbackPoster = media.poster_path
+        ? `https://image.tmdb.org/t/p/w500${media.poster_path}`
+        : null;
+      const seasonPoster = isMovie
+        ? null
+        : await getSeriesSeasonPoster(media.id, 1);
+
+      return {
+        tmdb_id: media.id,
+        title: media.title || media.name,
+        original_title: media.original_title || media.original_name,
+        synopsis: media.overview,
+        poster_url: seasonPoster || fallbackPoster,
+        release_date: media.release_date || media.first_air_date || null,
+        type: isMovie ? "MOVIE" : "SERIES",
+      };
+    })
+  );
+}
 
 async function getSeriesSeasonPoster(tmdbId, seasonNumber = 1) {
   try {
@@ -28,106 +68,102 @@ async function getSeriesSeasonPoster(tmdbId, seasonNumber = 1) {
   }
 }
 
-export async function searchMovies(query) {
-  const response = await fetch(
-    `${BASE_URL}/search/multi?query=${encodeURIComponent(query)}&language=pt-BR`,
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
+export async function searchMovies(query, page = 1, perPage = 24) {
+  const offset = ((page - 1) * perPage) % TMDB_PAGE_SIZE;
+  const targetCount = offset + perPage;
+  const initialPage =
+    Math.floor(((page - 1) * perPage) / TMDB_PAGE_SIZE) + 1;
 
-  const data = await response.json();
+  let aggregated = [];
+  let currentPage = initialPage;
+  let totalResults = null;
+  let totalPagesRaw = null;
 
-  const filteredResults = data.results
-    .filter((media) => media.media_type === "movie" || media.media_type === "tv")
-    .filter((media) => {
-      const hasAnimationGenre = (media.genre_ids || []).includes(16);
-      const isJapanese = media.original_language === "ja";
-
-      if (hasAnimationGenre && isJapanese) {
-        return false;
+  while (aggregated.length < targetCount) {
+    const response = await fetch(
+      `${BASE_URL}/search/multi?query=${encodeURIComponent(
+        query
+      )}&language=pt-BR&page=${currentPage}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
       }
+    );
 
-      return true;
-    });
+    const data = await response.json();
 
-  const mappedResults = await Promise.all(
-    filteredResults.map(async (media) => {
-      const isMovie = media.media_type === "movie";
-      const fallbackPoster = media.poster_path
-        ? `https://image.tmdb.org/t/p/w500${media.poster_path}`
-        : null;
-      const seasonPoster = isMovie
-        ? null
-        : await getSeriesSeasonPoster(media.id, 1);
+    if (totalResults === null) {
+      totalResults = data.total_results || 0;
+      totalPagesRaw = data.total_pages || 1;
+    }
 
-      return {
-        tmdb_id: media.id,
-        title: media.title || media.name,
-        original_title: media.original_title || media.original_name,
-        synopsis: media.overview,
-        poster_url: seasonPoster || fallbackPoster,
-        release_date: media.release_date || media.first_air_date || null,
-        type: isMovie ? "MOVIE" : "SERIES",
-      };
-    })
-  );
+    const filteredResults = filterMediaResults(data.results || []);
+    const mappedResults = await mapMediaResults(filteredResults);
 
-  return mappedResults;
+    aggregated = aggregated.concat(mappedResults);
+
+    if (currentPage >= totalPagesRaw || mappedResults.length === 0) {
+      break;
+    }
+
+    currentPage += 1;
+  }
+
+  return {
+    results: aggregated.slice(offset, offset + perPage),
+    page,
+    totalPages: Math.max(1, Math.ceil(totalResults / perPage)),
+  };
 }
 
-export async function getPopularMedia() {
-  const response = await fetch(
-    `${BASE_URL}/trending/all/day?language=pt-BR`,
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
+export async function getPopularMedia(page = 1, perPage = 24) {
+  const offset = ((page - 1) * perPage) % TMDB_PAGE_SIZE;
+  const targetCount = offset + perPage;
+  const initialPage =
+    Math.floor(((page - 1) * perPage) / TMDB_PAGE_SIZE) + 1;
 
-  const data = await response.json();
+  let aggregated = [];
+  let currentPage = initialPage;
+  let totalResults = null;
+  let totalPagesRaw = null;
 
-  const filteredResults = data.results
-    .filter((media) => media.media_type === "movie" || media.media_type === "tv")
-    .filter((media) => {
-      const hasAnimationGenre = (media.genre_ids || []).includes(16);
-      const isJapanese = media.original_language === "ja";
-
-      if (hasAnimationGenre && isJapanese) {
-        return false;
+  while (aggregated.length < targetCount) {
+    const response = await fetch(
+      `${BASE_URL}/trending/all/day?language=pt-BR&page=${currentPage}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
       }
+    );
 
-      return true;
-    });
+    const data = await response.json();
 
-  const mappedResults = await Promise.all(
-    filteredResults.map(async (media) => {
-      const isMovie = media.media_type === "movie";
-      const fallbackPoster = media.poster_path
-        ? `https://image.tmdb.org/t/p/w500${media.poster_path}`
-        : null;
-      const seasonPoster = isMovie
-        ? null
-        : await getSeriesSeasonPoster(media.id, 1);
+    if (totalResults === null) {
+      totalResults = data.total_results || 0;
+      totalPagesRaw = data.total_pages || 1;
+    }
 
-      return {
-        tmdb_id: media.id,
-        title: media.title || media.name,
-        original_title: media.original_title || media.original_name,
-        synopsis: media.overview,
-        poster_url: seasonPoster || fallbackPoster,
-        release_date: media.release_date || media.first_air_date || null,
-        type: isMovie ? "MOVIE" : "SERIES",
-      };
-    })
-  );
+    const filteredResults = filterMediaResults(data.results || []);
+    const mappedResults = await mapMediaResults(filteredResults);
 
-  return mappedResults;
+    aggregated = aggregated.concat(mappedResults);
+
+    if (currentPage >= totalPagesRaw || mappedResults.length === 0) {
+      break;
+    }
+
+    currentPage += 1;
+  }
+
+  return {
+    results: aggregated.slice(offset, offset + perPage),
+    page,
+    totalPages: Math.max(1, Math.ceil(totalResults / perPage)),
+  };
 }
 
 export async function getMediaVideos({ tmdbId, type }) {
@@ -176,6 +212,7 @@ export async function getMediaDetails({ tmdbId, type }) {
     seasons: type === "SERIES"
       ? (data.seasons || []).map((season) => ({
         season_number: season.season_number,
+        synopsis: season.overview || null,
         poster_url: season.poster_path
           ? `https://image.tmdb.org/t/p/w500${season.poster_path}`
           : null,

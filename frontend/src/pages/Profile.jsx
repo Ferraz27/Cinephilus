@@ -6,10 +6,11 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [lists, setLists] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
   const [formValues, setFormValues] = useState({
     name: "",
     bio: "",
-    avatar_url: "",
   });
 
   async function loadProfile() {
@@ -34,13 +35,22 @@ export default function Profile() {
     setFormValues({
       name: userResponse.data?.name || "",
       bio: userResponse.data?.bio || "",
-      avatar_url: userResponse.data?.avatar_url || "",
     });
+    setAvatarPreview(userResponse.data?.avatar_url || "");
+    setAvatarFile(null);
   }
 
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview && avatarPreview.startsWith("blob:")) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
 
   if (!user) {
     return (
@@ -164,26 +174,27 @@ export default function Profile() {
                 event.preventDefault();
                 const token = localStorage.getItem("token");
 
-                const response = await api.put(
-                  "/users/me",
-                  {
-                    name: formValues.name,
-                    bio: formValues.bio,
-                    avatar_url: formValues.avatar_url,
+                const payload = new FormData();
+                payload.append("name", formValues.name);
+                payload.append("bio", formValues.bio);
+                if (avatarFile) {
+                  payload.append("avatar", avatarFile);
+                }
+
+                const response = await api.put("/users/me", payload, {
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "multipart/form-data",
                   },
-                  {
-                    headers: {
-                      Authorization: `Bearer ${token}`,
-                    },
-                  },
-                );
+                });
 
                 setUser(response.data);
                 setFormValues({
                   name: response.data?.name || "",
                   bio: response.data?.bio || "",
-                  avatar_url: response.data?.avatar_url || "",
                 });
+                setAvatarPreview(response.data?.avatar_url || "");
+                setAvatarFile(null);
                 setIsEditing(false);
               }}
               className="space-y-4"
@@ -204,18 +215,38 @@ export default function Profile() {
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Foto (URL)</label>
-                <input
-                  value={formValues.avatar_url}
-                  onChange={(event) =>
-                    setFormValues((current) => ({
-                      ...current,
-                      avatar_url: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-3 text-sm text-white outline-none focus:border-red-500"
-                  placeholder="https://..."
-                />
+                <label className="text-sm text-zinc-300">Foto (upload)</label>
+                <div className="flex items-center gap-4">
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="Preview do avatar"
+                      className="w-16 h-16 rounded-full object-cover border border-zinc-800"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center text-xs text-zinc-400">
+                      Sem foto
+                    </div>
+                  )}
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null;
+                      setAvatarFile(file);
+                      if (file) {
+                        setAvatarPreview(URL.createObjectURL(file));
+                      } else {
+                        setAvatarPreview(user.avatar_url || "");
+                      }
+                    }}
+                    className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-3 text-sm text-white outline-none focus:border-red-500"
+                  />
+                </div>
+                <p className="text-xs text-zinc-500 mt-2">
+                  JPG, PNG ou WEBP ate 2MB.
+                </p>
               </div>
 
               <div>
@@ -247,8 +278,9 @@ export default function Profile() {
                     setFormValues({
                       name: user.name || "",
                       bio: user.bio || "",
-                      avatar_url: user.avatar_url || "",
                     });
+                    setAvatarPreview(user.avatar_url || "");
+                    setAvatarFile(null);
                     setIsEditing(false);
                   }}
                   className="text-sm px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 transition"

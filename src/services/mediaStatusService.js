@@ -24,7 +24,7 @@ export async function setMediaStatus({
     : null;
   const normalizedSeason =
     type === "SERIES"
-      ? parsedSeason ?? 1
+      ? parsedSeason ?? 0
       : 0;
 
   if (status === null || status === undefined) {
@@ -52,7 +52,7 @@ export async function setMediaStatus({
   }
 
   if (type === "SERIES") {
-    if (!Number.isInteger(normalizedSeason) || normalizedSeason < 1) {
+    if (!Number.isInteger(normalizedSeason) || normalizedSeason < 0) {
       throw new Error("Temporada inválida");
     }
   }
@@ -82,6 +82,7 @@ export async function setMediaStatus({
     where: {
       user_id: userId,
       media_id: media.id,
+      season_number: normalizedSeason,
     },
     defaults: {
       user_id: userId,

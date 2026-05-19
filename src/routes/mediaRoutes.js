@@ -8,6 +8,7 @@ import {
   mediaDetails,
   updateMediaStatus,
   getMediaStatus,
+  getRatingsSummary,
 } from "../controllers/mediaController.js";
 
 import {
@@ -26,6 +27,7 @@ router.get("/search", searchMedia);
 router.get("/popular", popularMedia);
 router.get("/:tmdbId/videos", mediaVideos);
 router.get("/:tmdbId/details", mediaDetails);
+router.get("/:tmdbId/ratings-summary", getRatingsSummary);
 router.get("/:tmdbId/reviews", optionalAuthMiddleware, getReviews);
 router.post("/:tmdbId/reviews", authMiddleware, createReview);
 router.post("/reviews/:reviewId/vote", authMiddleware, voteReview);

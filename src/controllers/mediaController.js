@@ -11,10 +11,14 @@ import {
 
 import Media from "../models/Media.js";
 import UserMediaStatus from "../models/UserMediaStatus.js";
+import sequelize from "../config/database.js";
+import { Op } from "sequelize";
 
 export async function searchMedia(req, res) {
   try {
     const { query } = req.query;
+    const page = Number(req.query.page) || 1;
+    const perPage = 24;
 
     if (!query) {
       return res.status(400).json({
@@ -22,7 +26,7 @@ export async function searchMedia(req, res) {
       });
     }
 
-    const movies = await searchMovies(query);
+    const movies = await searchMovies(query, page, perPage);
 
     res.json(movies);
   } catch (error) {
@@ -36,7 +40,9 @@ export async function searchMedia(req, res) {
 
 export async function popularMedia(req, res) {
   try {
-    const media = await getPopularMedia();
+    const page = Number(req.query.page) || 1;
+    const perPage = 24;
+    const media = await getPopularMedia(page, perPage);
 
     res.json(media);
   } catch (error) {
@@ -149,6 +155,84 @@ export async function mediaDetails(req, res) {
     });
 
     return res.json(details);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+}
+
+export async function getRatingsSummary(req, res) {
+  try {
+    const { tmdbId } = req.params;
+    const { season } = req.query;
+
+    const media = await Media.findOne({
+      where: {
+        tmdb_id: tmdbId,
+      },
+    });
+
+    const distribution = {};
+    for (let value = 0.5; value <= 5; value += 0.5) {
+      distribution[value.toFixed(1)] = 0;
+    }
+
+    if (!media) {
+      return res.json({
+        average: 0,
+        total: 0,
+        distribution,
+      });
+    }
+
+    const seasonNumber =
+      media.type === "SERIES"
+        ? Number.isFinite(Number(season))
+          ? Number(season)
+          : 1
+        : 0;
+
+    const rows = await UserMediaStatus.findAll({
+      where: {
+        media_id: media.id,
+        season_number: seasonNumber,
+        rating: {
+          [Op.ne]: null,
+        },
+      },
+      attributes: [
+        "rating",
+        [sequelize.fn("COUNT", sequelize.col("rating")), "count"],
+      ],
+      group: ["rating"],
+      raw: true,
+    });
+
+    rows.forEach((row) => {
+      const key = Number(row.rating).toFixed(1);
+      if (Object.prototype.hasOwnProperty.call(distribution, key)) {
+        distribution[key] = Number(row.count);
+      }
+    });
+
+    const total = Object.values(distribution).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    const sum = Object.entries(distribution).reduce(
+      (acc, [rating, count]) => acc + Number(rating) * count,
+      0
+    );
+    const average = total > 0 ? Number((sum / total).toFixed(2)) : 0;
+
+    return res.json({
+      average,
+      total,
+      distribution,
+    });
   } catch (error) {
     console.error(error);
 

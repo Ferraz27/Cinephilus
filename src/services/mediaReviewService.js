@@ -33,15 +33,11 @@ export async function createOrUpdateReview({
     throw new Error("Review deve ter no maximo 2000 caracteres");
   }
 
-  if (type !== "SERIES") {
-    throw new Error("Reviews estao disponiveis apenas para series");
-  }
-
   const season = Number.isInteger(Number(season_number))
     ? Number(season_number)
-    : 1;
+    : 0;
 
-  if (season < 1) {
+  if (season < 0) {
     throw new Error("Temporada invalida");
   }
 
@@ -103,7 +99,7 @@ export async function listReviews({ tmdb_id, season_number, userId }) {
 
   const season = Number.isInteger(Number(season_number))
     ? Number(season_number)
-    : 1;
+    : 0;
 
   return MediaReview.findAll({
     where: {
@@ -131,6 +127,12 @@ export async function listReviews({ tmdb_id, season_number, userId }) {
               : "NULL"
           ),
           "user_vote",
+        ],
+        [
+          sequelize.literal(
+            '(SELECT rating FROM user_media_status WHERE user_id = "MediaReview"."user_id" AND media_id = "MediaReview"."media_id" AND season_number = "MediaReview"."season_number" LIMIT 1)'
+          ),
+          "rating",
         ],
       ],
     },

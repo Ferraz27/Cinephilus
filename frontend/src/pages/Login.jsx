@@ -5,20 +5,28 @@ import api from "../services/api";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const navigate = useNavigate();
 
   async function handleLogin(event) {
     event.preventDefault();
 
-    const response = await api.post("/auth/login", {
-      email,
-      password,
-    });
+    setError("");
 
-    localStorage.setItem("token", response.data.token);
+    try {
+      const response = await api.post("/auth/login", {
+        email,
+        password,
+      });
 
-    navigate("/search");
+      localStorage.setItem("token", response.data.token);
+
+      navigate("/search");
+    } catch (err) {
+      const message = err?.response?.data?.error || "Credenciais invalidas";
+      setError(message);
+    }
   }
 
   return (
@@ -52,6 +60,12 @@ export default function Login() {
             onChange={(event) => setPassword(event.target.value)}
           />
         </div>
+
+        {error && (
+          <p className="text-sm text-red-400" role="alert">
+            {error}
+          </p>
+        )}
 
         <button
           type="submit"

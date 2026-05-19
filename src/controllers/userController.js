@@ -41,11 +41,18 @@ export async function getMe(req, res) {
 
 export async function updateMe(req, res) {
   const { name, bio, avatar_url } = req.body;
+  const nextName = name ?? req.user.name;
+  const nextBio = bio ?? req.user.bio;
+  let nextAvatarUrl = avatar_url ?? req.user.avatar_url;
+
+  if (req.file) {
+    nextAvatarUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  }
 
   await req.user.update({
-    name,
-    bio,
-    avatar_url,
+    name: nextName,
+    bio: nextBio,
+    avatar_url: nextAvatarUrl,
   });
 
   const [completedCount, watchingCount, plannedCount, droppedCount, reviewsCount] = await Promise.all([
