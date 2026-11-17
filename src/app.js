@@ -8,6 +8,7 @@ import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import folderRoutes from "./routes/folderRoutes.js";
 import mediaListRoutes from "./routes/mediaListRoutes.js";
+import publicRoutes from "./routes/publicRoutes.js";
 
 
 const app = express();
@@ -30,5 +31,6 @@ app.use("/media", mediaRoutes);
 app.use("/users", userRoutes);
 app.use("/folders", folderRoutes);
 app.use("/lists", mediaListRoutes);
+app.use("/public", publicRoutes);
 
 export default app;

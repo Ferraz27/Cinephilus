@@ -7,6 +7,10 @@ import { fileURLToPath } from "url";
 import {
   getMe,
   updateMe,
+  getMyFavorites,
+  updateMyFavorites,
+  getMyMediaByStatus,
+  getMyAllReviews,
 } from "../controllers/userController.js";
 
 import { authMiddleware } from "../middlewares/authMiddleware.js";
@@ -43,5 +47,9 @@ const upload = multer({
 
 router.get("/me", authMiddleware, getMe);
 router.put("/me", authMiddleware, upload.single("avatar"), updateMe);
+router.get("/me/favorites", authMiddleware, getMyFavorites);
+router.put("/me/favorites", authMiddleware, updateMyFavorites);
+router.get("/me/media", authMiddleware, getMyMediaByStatus);
+router.get("/me/reviews", authMiddleware, getMyAllReviews);
 
 export default router;

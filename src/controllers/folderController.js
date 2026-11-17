@@ -2,6 +2,8 @@ import {
   createFolder,
   getUserFolders,
   getFolderLists,
+  updateFolder,
+  deleteFolder,
 } from "../services/folderService.js";
 
 export async function create(req, res) {
@@ -41,6 +43,37 @@ export async function lists(req, res) {
     return res.json(folder);
   } catch (error) {
     return res.status(404).json({
+      error: error.message,
+    });
+  }
+}
+
+export async function update(req, res) {
+  try {
+    const folder = await updateFolder({
+      userId: req.user.id,
+      folderId: req.params.id,
+      ...req.body,
+    });
+
+    return res.json(folder);
+  } catch (error) {
+    return res.status(400).json({
+      error: error.message,
+    });
+  }
+}
+
+export async function destroy(req, res) {
+  try {
+    const result = await deleteFolder({
+      userId: req.user.id,
+      folderId: req.params.id,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(400).json({
       error: error.message,
     });
   }

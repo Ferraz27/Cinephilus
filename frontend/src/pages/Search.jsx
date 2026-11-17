@@ -1,3 +1,12 @@
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Clock3,
+  MonitorCheck,
+  MonitorPlay,
+  MonitorX,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -14,15 +23,60 @@ export default function Search() {
   const [popularPage, setPopularPage] = useState(1);
   const [popularTotalPages, setPopularTotalPages] = useState(1);
   const [sortBy, setSortBy] = useState("relevance");
+  const [sortDirection, setSortDirection] = useState("desc");
   const [mediaFilter, setMediaFilter] = useState("all");
+  const [statusByTmdbId, setStatusByTmdbId] = useState({});
+
+  const statusBadgeConfig = {
+    COMPLETED: { color: "bg-green-700/75", icon: MonitorCheck },
+    WATCHING: { color: "bg-yellow-700/75", icon: MonitorPlay },
+    DROPPED: { color: "bg-red-800/75", icon: MonitorX },
+    PLANNED: { color: "bg-blue-700/75", icon: Clock3 },
+  };
+
+  async function loadStatusesForMedia(items) {
+    const token = localStorage.getItem("token");
+
+    if (!token || items.length === 0) {
+      setStatusByTmdbId({});
+      return;
+    }
+
+    try {
+      const tmdbIds = items.map((item) => item.tmdb_id);
+      const response = await api.post(
+        "/media/status/batch",
+        { tmdbIds },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setStatusByTmdbId(response.data || {});
+    } catch (error) {
+      console.error("Erro ao carregar status:", error);
+      setStatusByTmdbId({});
+    }
+  }
 
   async function fetchSearch(page) {
     if (!query.trim()) {
       return;
     }
 
+    const mediaTypeParam =
+      mediaFilter === "movie"
+        ? "MOVIE"
+        : mediaFilter === "series"
+          ? "SERIES"
+          : null;
+
     const response = await api.get(
-      `/media/search?query=${encodeURIComponent(query)}&page=${page}`
+      `/media/search?query=${encodeURIComponent(query)}&page=${page}${
+        mediaTypeParam ? `&type=${mediaTypeParam}` : ""
+      }`
     );
 
     setResults(response.data.results || []);
@@ -30,6 +84,7 @@ export default function Search() {
     setTotalPages(response.data.totalPages || 1);
     setSortBy("relevance");
     setIsSearching(true);
+    loadStatusesForMedia(response.data.results || []);
   }
 
   async function handleSearch(event) {
@@ -70,16 +125,34 @@ export default function Search() {
   }
 
   async function loadPopularMedia(page = 1) {
-    const response = await api.get(`/media/popular?page=${page}`);
+    const mediaTypeParam =
+      mediaFilter === "movie"
+        ? "MOVIE"
+        : mediaFilter === "series"
+          ? "SERIES"
+          : null;
+    const response = await api.get(
+      `/media/popular?page=${page}${mediaTypeParam ? `&type=${mediaTypeParam}` : ""}`
+    );
 
     setPopularMedia(response.data.results || []);
     setPopularPage(response.data.page || page);
     setPopularTotalPages(response.data.totalPages || 1);
+    loadStatusesForMedia(response.data.results || []);
   }
 
   useEffect(() => {
     loadPopularMedia(1);
   }, []);
+
+  useEffect(() => {
+    if (isSearching) {
+      fetchSearch(1);
+      return;
+    }
+
+    loadPopularMedia(1);
+  }, [mediaFilter]);
 
   const displayedMedia = isSearching ? results : popularMedia;
   const activePage = isSearching ? currentPage : popularPage;
@@ -95,21 +168,41 @@ export default function Search() {
 
     return true;
   });
+  const resultsLabel = `${filteredMedia.length} resultado${filteredMedia.length === 1 ? "" : "s"}`;
+  function renderStatusBadge(status) {
+    const config = statusBadgeConfig[status];
+
+    if (!config) {
+      return null;
+    }
+
+    const Icon = config.icon;
+
+    return (
+      <div
+        className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg ${config.color} text-white shadow-lg`}
+      >
+        <Icon size={16} />
+      </div>
+    );
+  }
+  const isDirectionDisabled = sortBy === "relevance";
 
   const sortedMedia = [...filteredMedia].sort((a, b) => {
+    if (sortBy === "relevance") {
+      return 0;
+    }
+
+    const multiplier = sortDirection === "asc" ? 1 : -1;
+
     if (sortBy === "title") {
-      return a.title.localeCompare(b.title);
+      return a.title.localeCompare(b.title) * multiplier;
     }
 
-    if (sortBy === "release_desc") {
-      return new Date(b.release_date || 0) - new Date(a.release_date || 0);
-    }
+    const aTime = new Date(a.release_date || 0).getTime();
+    const bTime = new Date(b.release_date || 0).getTime();
 
-    if (sortBy === "release_asc") {
-      return new Date(a.release_date || 0) - new Date(b.release_date || 0);
-    }
-
-    return 0;
+    return (aTime - bTime) * multiplier;
   });
 
   const pageItems = buildPageItems(activePage, activeTotalPages);
@@ -118,16 +211,16 @@ export default function Search() {
     <main className="min-h-screen bg-black text-white px-8 py-10">
       <section className="max-w-7xl mx-auto">
         <div className="mb-10">
-          <h1 className="text-4xl font-bold">Buscar mídia</h1>
+          <h1 className="ui-title">Buscar mídia</h1>
 
           <p className="text-zinc-500 mt-2">
-            Descubra filmes, séries e animes.
+            Descubra filmes e séries .
           </p>
         </div>
 
         <form onSubmit={handleSearch} className="flex gap-3 mb-10">
           <input
-            className="flex-1 rounded-2xl bg-zinc-900 border border-zinc-800 px-5 py-4 outline-none focus:border-red-500"
+            className="flex-1 ui-input px-5 py-4 text-base"
             placeholder="Digite o nome de uma mídia..."
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -135,7 +228,7 @@ export default function Search() {
 
           <button
             type="submit"
-            className="bg-red-600 hover:bg-red-700 transition rounded-2xl px-6 py-4 font-semibold"
+            className="ui-btn-primary rounded-2xl px-6 py-4 text-base"
           >
             Buscar
           </button>
@@ -143,41 +236,69 @@ export default function Search() {
 
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">
+            <h2 className="ui-section-title">
               {isSearching ? "Resultados da busca" : "Em alta"}
             </h2>
 
             <p className="text-zinc-500 mt-1">
               {isSearching
-                ? `${filteredMedia.length} resultado(s)`
+                ? resultsLabel
                 : "Mídias populares da comunidade"}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={mediaFilter}
-              onChange={(event) => setMediaFilter(event.target.value)}
-              className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-red-500"
+            <div className="relative">
+              <select
+                value={mediaFilter}
+                onChange={(event) => setMediaFilter(event.target.value)}
+                className="appearance-none rounded-2xl bg-zinc-950/60 border border-zinc-800 px-4 py-3 pr-10 text-sm outline-none transition hover:border-zinc-700 focus:border-red-500/60 focus:ring-2 focus:ring-red-500/15"
+              >
+                <option value="all">Filmes e series</option>
+                <option value="movie">Somente filmes</option>
+                <option value="series">Somente series</option>
+              </select>
+              <ChevronDown
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
+              />
+            </div>
+
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                className="appearance-none rounded-2xl bg-zinc-950/60 border border-zinc-800 px-4 py-3 pr-10 text-sm outline-none transition hover:border-zinc-700 focus:border-red-500/60 focus:ring-2 focus:ring-red-500/15"
+              >
+                <option value="relevance">Relevância</option>
+
+                <option value="title">Ordem alfabética</option>
+
+                <option value="release">Lançamento</option>
+              </select>
+              <ChevronDown
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSortDirection((value) => (value === "asc" ? "desc" : "asc"))
+              }
+              disabled={isDirectionDisabled}
+              className="flex items-center justify-center h-[48px] rounded-2xl bg-zinc-950/60 border border-zinc-800 px-4 text-zinc-300 hover:text-white hover:border-zinc-700 transition disabled:opacity-40 disabled:hover:border-zinc-800"
+              title={
+                isDirectionDisabled
+                  ? "Ordem baseada em relevância"
+                  : sortDirection === "asc"
+                    ? "Ordem crescente"
+                    : "Ordem decrescente"
+              }
             >
-              <option value="all">Filmes e series</option>
-              <option value="movie">Somente filmes</option>
-              <option value="series">Somente series</option>
-            </select>
-
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value)}
-              className="rounded-xl bg-zinc-900 border border-zinc-800 px-4 py-3 outline-none focus:border-red-500"
-            >
-              <option value="relevance">Relevância</option>
-
-              <option value="title">Ordem alfabética</option>
-
-              <option value="release_desc">Lançamento mais recente</option>
-
-              <option value="release_asc">Lançamento mais antigo</option>
-            </select>
+              {sortDirection === "asc" ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
+            </button>
           </div>
         </div>
 
@@ -189,12 +310,13 @@ export default function Search() {
               state={{ media }}
               className="group"
             >
-              <div className="relative overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-900 aspect-[2/3]">
+              <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 aspect-[2/3] shadow-lg shadow-black/30">
+                {renderStatusBadge(statusByTmdbId[media.tmdb_id])}
                 {media.poster_url ? (
                   <img
                     src={media.poster_url}
                     alt={media.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    className="w-full h-full object-cover group-hover:scale-[1.01] transition duration-300"
                   />
                 ) : (
                   <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-500">
@@ -202,9 +324,9 @@ export default function Search() {
                   </div>
                 )}
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-black/20" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-black/20 transition-opacity duration-300 group-hover:opacity-10" />
 
-                <div className="absolute inset-0 p-4 flex flex-col justify-between">
+                <div className="absolute inset-0 p-4 flex flex-col justify-between transition-opacity duration-300 group-hover:opacity-10">
                   <p className="text-xs text-white/60 font-medium">
                     {media.release_date || "Sem data"}
                   </p>
@@ -222,7 +344,7 @@ export default function Search() {
               type="button"
               onClick={handlePrevPage}
               disabled={activePage <= 1}
-              className="rounded-xl border border-zinc-800 px-3 py-2 text-sm disabled:opacity-40"
+              className="ui-btn-secondary px-3 py-2"
             >
               Anterior
             </button>
@@ -252,7 +374,7 @@ export default function Search() {
               type="button"
               onClick={handleNextPage}
               disabled={activePage >= activeTotalPages}
-              className="rounded-xl border border-zinc-800 px-3 py-2 text-sm disabled:opacity-40"
+              className="ui-btn-secondary px-3 py-2"
             >
               Próxima
             </button>

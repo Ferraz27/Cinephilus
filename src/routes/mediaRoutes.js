@@ -8,13 +8,16 @@ import {
   mediaDetails,
   updateMediaStatus,
   getMediaStatus,
+  getMediaStatusBatch,
   getRatingsSummary,
 } from "../controllers/mediaController.js";
 
 import {
   createReview,
+  commentReview,
   getReviews,
   voteReview,
+  getReviewById,
 } from "../controllers/mediaReviewController.js";
 
 import { createOrUpdateMediaStatus } from "../controllers/mediaStatusController.js";
@@ -29,9 +32,12 @@ router.get("/:tmdbId/videos", mediaVideos);
 router.get("/:tmdbId/details", mediaDetails);
 router.get("/:tmdbId/ratings-summary", getRatingsSummary);
 router.get("/:tmdbId/reviews", optionalAuthMiddleware, getReviews);
+router.get("/reviews/:reviewId", optionalAuthMiddleware, getReviewById);
 router.post("/:tmdbId/reviews", authMiddleware, createReview);
+router.post("/reviews/:reviewId/comments", authMiddleware, commentReview);
 router.post("/reviews/:reviewId/vote", authMiddleware, voteReview);
 router.post("/status", authMiddleware, createOrUpdateMediaStatus);
+router.post("/status/batch", authMiddleware, getMediaStatusBatch);
 router.get("/:tmdbId/status",authMiddleware,getMediaStatus);
 
 

@@ -21,6 +21,11 @@ const Folder = sequelize.define("Folder", {
   description: {
     type: DataTypes.TEXT,
   },
+
+  is_public: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
 }, {
   tableName: "folders",
   timestamps: true,

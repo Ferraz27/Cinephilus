@@ -16,7 +16,7 @@ import { Op } from "sequelize";
 
 export async function searchMedia(req, res) {
   try {
-    const { query } = req.query;
+    const { query, type } = req.query;
     const page = Number(req.query.page) || 1;
     const perPage = 24;
 
@@ -26,7 +26,8 @@ export async function searchMedia(req, res) {
       });
     }
 
-    const movies = await searchMovies(query, page, perPage);
+    const mediaType = type === "MOVIE" || type === "SERIES" ? type : "ALL";
+    const movies = await searchMovies(query, page, perPage, mediaType);
 
     res.json(movies);
   } catch (error) {
@@ -42,7 +43,11 @@ export async function popularMedia(req, res) {
   try {
     const page = Number(req.query.page) || 1;
     const perPage = 24;
-    const media = await getPopularMedia(page, perPage);
+    const mediaType =
+      req.query.type === "MOVIE" || req.query.type === "SERIES"
+        ? req.query.type
+        : "ALL";
+    const media = await getPopularMedia(page, perPage, mediaType);
 
     res.json(media);
   } catch (error) {
@@ -123,12 +128,78 @@ export async function getMediaStatus(req, res) {
           media.type === "SERIES"
             ? season
               ? Number(season)
-              : 1
+              : 0
             : 0,
       },
     });
 
     return res.json(userMediaStatus);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      error: "Internal server error",
+    });
+  }
+}
+
+export async function getMediaStatusBatch(req, res) {
+  try {
+    const userId = req.user.id;
+    const { tmdbIds } = req.body;
+
+    if (!Array.isArray(tmdbIds)) {
+      return res.status(400).json({
+        error: "tmdbIds must be an array",
+      });
+    }
+
+    const uniqueIds = [...new Set(tmdbIds.map((id) => String(id)))];
+
+    if (uniqueIds.length === 0) {
+      return res.json({});
+    }
+
+    const medias = await Media.findAll({
+      where: {
+        tmdb_id: uniqueIds,
+      },
+    });
+
+    if (medias.length === 0) {
+      return res.json({});
+    }
+
+    const mediaIds = medias.map((media) => media.id);
+    const statuses = await UserMediaStatus.findAll({
+      where: {
+        user_id: userId,
+        media_id: mediaIds,
+        season_number: {
+          [Op.in]: [0, 1],
+        },
+      },
+    });
+
+    const statusByMediaSeason = new Map(
+      statuses.map((status) => [
+        `${status.media_id}:${status.season_number}`,
+        status.status,
+      ]),
+    );
+
+    const result = {};
+    medias.forEach((media) => {
+      const seasonNumber = media.type === "SERIES" ? 0 : 0;
+      const key = `${media.id}:${seasonNumber}`;
+      const status = statusByMediaSeason.get(key);
+
+      if (status) {
+        result[media.tmdb_id] = status;
+      }
+    });
+
+    return res.json(result);
   } catch (error) {
     console.error(error);
 

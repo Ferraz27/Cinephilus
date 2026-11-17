@@ -24,20 +24,20 @@ export default function Register() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
+    <main className="ui-page flex items-center justify-center py-16">
       <form
         onSubmit={handleRegister}
-        className="w-full max-w-sm bg-zinc-900 p-8 rounded-2xl shadow-lg space-y-5"
+        className="w-full max-w-sm ui-card p-8 backdrop-blur shadow-2xl shadow-black/50 space-y-5"
       >
         <div>
-          <h1 className="text-3xl font-bold">Cinephilus</h1>
+          <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight text-red-500"><span className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_14px] shadow-red-500/70" />Cinephilus</h1>
           <p className="text-zinc-400 mt-2">Crie sua conta</p>
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm text-zinc-300">Nome</label>
+          <label className="ui-eyebrow">Nome</label>
           <input
-            className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-3 outline-none focus:border-red-500"
+            className="ui-input"
             placeholder="Seu nome"
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -45,9 +45,9 @@ export default function Register() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm text-zinc-300">Usuario</label>
+          <label className="ui-eyebrow">Usuario</label>
           <input
-            className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-3 outline-none focus:border-red-500"
+            className="ui-input"
             placeholder="Seu usuario"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
@@ -55,9 +55,9 @@ export default function Register() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm text-zinc-300">Email</label>
+          <label className="ui-eyebrow">Email</label>
           <input
-            className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-3 outline-none focus:border-red-500"
+            className="ui-input"
             placeholder="seu@email.com"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -65,9 +65,9 @@ export default function Register() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm text-zinc-300">Senha</label>
+          <label className="ui-eyebrow">Senha</label>
           <input
-            className="w-full rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-3 outline-none focus:border-red-500"
+            className="ui-input"
             placeholder="Sua senha"
             type="password"
             value={password}
@@ -77,14 +77,14 @@ export default function Register() {
 
         <button
           type="submit"
-          className="w-full bg-red-600 hover:bg-red-700 transition rounded-lg py-3 font-semibold"
+          className="ui-btn-primary w-full py-3"
         >
           Criar conta
         </button>
 
         <Link
           to="/"
-          className="block text-center text-sm text-zinc-400 hover:text-white transition"
+          className="block text-center text-sm text-zinc-400 hover:text-red-400 transition"
         >
           Ja tenho conta
         </Link>

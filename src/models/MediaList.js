@@ -31,6 +31,12 @@ const MediaList = sequelize.define("MediaList", {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
   },
+
+  allow_comments: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+  },
 }, {
   tableName: "media_lists",
   timestamps: true,

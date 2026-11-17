@@ -34,6 +34,12 @@ const MediaReview = sequelize.define("MediaReview", {
     type: DataTypes.TEXT,
     allowNull: false,
   },
+
+  allow_replies: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+  },
 }, {
   tableName: "media_reviews",
   timestamps: true,

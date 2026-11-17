@@ -1,10 +1,24 @@
 const BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_PAGE_SIZE = 20;
 
-function filterMediaResults(results) {
-  return results
-    .filter((media) => media.media_type === "movie" || media.media_type === "tv")
-    .filter((media) => {
+function filterMediaResults(results, mediaType = "ALL") {
+  const filteredByType = results.filter((media) => {
+    if (media.media_type !== "movie" && media.media_type !== "tv") {
+      return false;
+    }
+
+    if (mediaType === "MOVIE") {
+      return media.media_type === "movie";
+    }
+
+    if (mediaType === "SERIES") {
+      return media.media_type === "tv";
+    }
+
+    return true;
+  });
+
+  return filteredByType.filter((media) => {
       const hasAnimationGenre = (media.genre_ids || []).includes(16);
       const isJapanese = media.original_language === "ja";
 
@@ -68,18 +82,19 @@ async function getSeriesSeasonPoster(tmdbId, seasonNumber = 1) {
   }
 }
 
-export async function searchMovies(query, page = 1, perPage = 24) {
-  const offset = ((page - 1) * perPage) % TMDB_PAGE_SIZE;
-  const targetCount = offset + perPage;
-  const initialPage =
-    Math.floor(((page - 1) * perPage) / TMDB_PAGE_SIZE) + 1;
+export async function searchMovies(query, page = 1, perPage = 24, mediaType = "ALL") {
+  const startIndex = (page - 1) * perPage;
+  const endIndex = startIndex + perPage;
 
-  let aggregated = [];
-  let currentPage = initialPage;
-  let totalResults = null;
+  let currentPage = 1;
   let totalPagesRaw = null;
+  let filteredCount = 0;
+  const pageItems = [];
 
-  while (aggregated.length < targetCount) {
+  while (
+    (totalPagesRaw === null || currentPage <= totalPagesRaw) &&
+    pageItems.length < perPage
+  ) {
     const response = await fetch(
       `${BASE_URL}/search/multi?query=${encodeURIComponent(
         query
@@ -94,42 +109,49 @@ export async function searchMovies(query, page = 1, perPage = 24) {
 
     const data = await response.json();
 
-    if (totalResults === null) {
-      totalResults = data.total_results || 0;
+    if (totalPagesRaw === null) {
       totalPagesRaw = data.total_pages || 1;
     }
 
-    const filteredResults = filterMediaResults(data.results || []);
-    const mappedResults = await mapMediaResults(filteredResults);
+    const filteredResults = filterMediaResults(data.results || [], mediaType);
 
-    aggregated = aggregated.concat(mappedResults);
+    for (const media of filteredResults) {
+      if (filteredCount >= startIndex && filteredCount < endIndex) {
+        pageItems.push(media);
+      }
 
-    if (currentPage >= totalPagesRaw || mappedResults.length === 0) {
+      filteredCount += 1;
+    }
+
+    if (filteredCount >= endIndex && pageItems.length >= perPage) {
       break;
     }
 
     currentPage += 1;
   }
 
+  const mappedResults = await mapMediaResults(pageItems);
+
   return {
-    results: aggregated.slice(offset, offset + perPage),
+    results: mappedResults,
     page,
-    totalPages: Math.max(1, Math.ceil(totalResults / perPage)),
+    totalPages: totalPagesRaw || 1,
   };
 }
 
-export async function getPopularMedia(page = 1, perPage = 24) {
-  const offset = ((page - 1) * perPage) % TMDB_PAGE_SIZE;
-  const targetCount = offset + perPage;
-  const initialPage =
-    Math.floor(((page - 1) * perPage) / TMDB_PAGE_SIZE) + 1;
+export async function getPopularMedia(page = 1, perPage = 24, mediaType = "ALL") {
+  const startIndex = (page - 1) * perPage;
+  const endIndex = startIndex + perPage;
 
-  let aggregated = [];
-  let currentPage = initialPage;
-  let totalResults = null;
+  let currentPage = 1;
   let totalPagesRaw = null;
+  let filteredCount = 0;
+  const pageItems = [];
 
-  while (aggregated.length < targetCount) {
+  while (
+    (totalPagesRaw === null || currentPage <= totalPagesRaw) &&
+    pageItems.length < perPage
+  ) {
     const response = await fetch(
       `${BASE_URL}/trending/all/day?language=pt-BR&page=${currentPage}`,
       {
@@ -142,27 +164,33 @@ export async function getPopularMedia(page = 1, perPage = 24) {
 
     const data = await response.json();
 
-    if (totalResults === null) {
-      totalResults = data.total_results || 0;
+    if (totalPagesRaw === null) {
       totalPagesRaw = data.total_pages || 1;
     }
 
-    const filteredResults = filterMediaResults(data.results || []);
-    const mappedResults = await mapMediaResults(filteredResults);
+    const filteredResults = filterMediaResults(data.results || [], mediaType);
 
-    aggregated = aggregated.concat(mappedResults);
+    for (const media of filteredResults) {
+      if (filteredCount >= startIndex && filteredCount < endIndex) {
+        pageItems.push(media);
+      }
 
-    if (currentPage >= totalPagesRaw || mappedResults.length === 0) {
+      filteredCount += 1;
+    }
+
+    if (filteredCount >= endIndex && pageItems.length >= perPage) {
       break;
     }
 
     currentPage += 1;
   }
 
+  const mappedResults = await mapMediaResults(pageItems);
+
   return {
-    results: aggregated.slice(offset, offset + perPage),
+    results: mappedResults,
     page,
-    totalPages: Math.max(1, Math.ceil(totalResults / perPage)),
+    totalPages: totalPagesRaw || 1,
   };
 }
 
@@ -192,18 +220,55 @@ export async function getMediaVideos({ tmdbId, type }) {
     );
 }
 
+async function getWatchProviders(tmdbId, endpoint) {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/${endpoint}/${tmdbId}/watch/providers`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const data = await response.json();
+    const region = data.results?.BR || data.results?.US || null;
+
+    if (!region) {
+      return { providers: [], link: null };
+    }
+
+    const providers = region.flatrate || region.ads || region.free || [];
+
+    return {
+      link: region.link || null,
+      providers: [...providers]
+        .sort((a, b) => a.display_priority - b.display_priority)
+        .map((provider) => ({
+          provider_id: provider.provider_id,
+          provider_name: provider.provider_name,
+          logo_url: `https://image.tmdb.org/t/p/w92${provider.logo_path}`,
+        })),
+    };
+  } catch (error) {
+    console.error("Erro ao buscar provedores de streaming:", error);
+    return { providers: [], link: null };
+  }
+}
+
 export async function getMediaDetails({ tmdbId, type }) {
   const endpoint = type === "MOVIE" ? "movie" : "tv";
 
-  const response = await fetch(
-    `${BASE_URL}/${endpoint}/${tmdbId}?language=pt-BR`,
-    {
+  const [response, watchProviders] = await Promise.all([
+    fetch(`${BASE_URL}/${endpoint}/${tmdbId}?language=pt-BR`, {
       headers: {
         Authorization: `Bearer ${process.env.TMDB_API_TOKEN}`,
         "Content-Type": "application/json",
       },
-    }
-  );
+    }),
+    getWatchProviders(tmdbId, endpoint),
+  ]);
 
   const data = await response.json();
 
@@ -218,5 +283,7 @@ export async function getMediaDetails({ tmdbId, type }) {
           : null,
       }))
       : [],
+    providers: watchProviders.providers,
+    providersLink: watchProviders.link,
   };
 }
